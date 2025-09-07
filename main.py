@@ -1,71 +1,72 @@
+from telethon import TelegramClient, events
 import os
 import asyncio
-from telethon import TelegramClient, events
-from telethon.sessions import StringSession
+import re
 
-# Variables de entorno
-SESSION = os.getenv("TELETHON_SESSION")
-API_ID = int(os.getenv("TELEGRAM_API_ID"))
-API_HASH = os.getenv("TELEGRAM_API_HASH")
-FROM_CHANNEL = os.getenv("TELEGRAM_FROM_CHANNEL")  # sin @
-TO_CHAT_ID = int(os.getenv("TELEGRAM_TO_CHAT_ID"))  # ej: -1001234567890
+# === CONFIGURACIÓN: DATOS QUE TÚ MISMO DISTE ===
+api_id = 25342015
+api_hash = 'b047182edee6dd6d9a6ac6989984f46a'
+phone = '+18092046403'
 
-# Ruta del archivo contador
-COUNTER_FILE = "counter.txt"
+from_channel = 'LiveTraffic_channel'
+to_chat_username = '@PCGOODMULTIXKO'
 
-# Inicia cliente de Telegram
-client = TelegramClient(StringSession(SESSION), API_ID, API_HASH)
+# === NOMBRE DEL ARCHIVO DE CONTADOR ===
+counter_file = 'counter.txt'
 
-# Obtiene el siguiente número del contador
-def get_next_count():
-    if not os.path.exists(COUNTER_FILE):
-        with open(COUNTER_FILE, "w") as f:
-            f.write("1")
+# === FUNCIONES ===
+def get_counter():
+    if not os.path.exists(counter_file):
+        with open(counter_file, 'w') as f:
+            f.write('1')
         return 1
-    with open(COUNTER_FILE, "r") as f:
-        count = int(f.read().strip())
-    with open(COUNTER_FILE, "w") as f:
-        f.write(str(count + 1))
+    with open(counter_file, 'r') as f:
+        return int(f.read().strip())
+
+def increment_counter():
+    count = get_counter() + 1
+    with open(counter_file, 'w') as f:
+        f.write(str(count))
     return count
 
-@client.on(events.NewMessage(chats=FROM_CHANNEL))
-async def handler(event):
-    msg = event.message
-
-    # Verifica si el mensaje contiene un archivo/documento
-    if msg.file:
-        try:
-            # Extraer extensión del archivo original
-            original_ext = msg.file.name.split(".")[-1] if msg.file.name and "." in msg.file.name else "bin"
-            count = get_next_count()
-            new_filename = f"xkorly_{count}.{original_ext}"
-
-            # Descargar el archivo y renombrarlo
-            path = await msg.download_media(file=new_filename)
-
-            # Enviar el archivo con nuevo nombre y sin texto adicional
-            await client.send_file(
-                TO_CHAT_ID,
-                file=path,
-                caption=f"Archivo: {new_filename}"
-            )
-
-            print(f"📦 Enviado como {new_filename}")
-
-            # Eliminar archivo local después de enviar
-            os.remove(path)
-
-        except Exception as e:
-            print(f"❌ Error al reenviar archivo: {e}")
-    else:
-        print("⏭️ No es un archivo. Ignorado.")
+client = TelegramClient('session', api_id, api_hash)
 
 async def main():
-    await client.start()
+    await client.start(phone=phone)
     me = await client.get_me()
-    print(f"🤖 Bot conectado como: {me.username or me.first_name}")
-    print(f"📡 Escuchando mensajes del canal: {FROM_CHANNEL}")
+    print(f"🤖 Bot conectado como: {me.first_name}")
+
+    from_entity = await client.get_entity(from_channel)
+    to_entity = await client.get_entity(to_chat_username)
+
+    @client.on(events.NewMessage(chats=from_entity))
+    async def handler(event):
+        if event.file:
+            try:
+                # Crear nombre único como xkorly_1.zip, xkorly_2.zip, etc.
+                count = get_counter()
+                extension = event.file.ext or ".zip"
+                new_filename = f"xkorly_{count}{extension}"
+
+                # Reenviar archivo sin texto ni publicidad
+                await client.send_file(
+                    to_entity,
+                    event.file,
+                    caption="",  # Sin texto
+                    force_document=True,
+                    file_name=new_filename
+                )
+
+                print(f"✅ Archivo reenviado como {new_filename}")
+                increment_counter()
+
+            except Exception as e:
+                print("❌ Error al reenviar archivo:", e)
+        else:
+            print("⚠️ Mensaje sin archivo, ignorado.")
+
+    print(f"📡 Escuchando mensajes del canal: {from_channel}")
     await client.run_until_disconnected()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+with client:
+    client.loop.run_until_complete(main())
