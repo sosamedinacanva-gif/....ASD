@@ -1,20 +1,19 @@
 from telethon import TelegramClient, events
 import os
-import asyncio
-import re
 
-# === CONFIGURACIÓN: DATOS QUE TÚ MISMO DISTE ===
+# ✅ DATOS DE AUTENTICACIÓN
 api_id = 25342015
 api_hash = 'b047182edee6dd6d9a6ac6989984f46a'
 phone = '+18092046403'
 
-from_channel = 'LiveTraffic_channel'
-to_chat_username = '@PCGOODMULTIXKO'
+# ✅ DATOS DE LOS CHATS
+from_channel = 'LiveTraffic_channel'  # canal origen
+to_chat_id = -1003004655869           # grupo destino
 
-# === NOMBRE DEL ARCHIVO DE CONTADOR ===
+# ✅ ARCHIVO PARA CONTADOR
 counter_file = 'counter.txt'
 
-# === FUNCIONES ===
+# 🔢 Funciones para contador
 def get_counter():
     if not os.path.exists(counter_file):
         with open(counter_file, 'w') as f:
@@ -29,44 +28,44 @@ def increment_counter():
         f.write(str(count))
     return count
 
+# ✅ INICIAR CLIENTE
 client = TelegramClient('session', api_id, api_hash)
+
+@client.on(events.NewMessage(chats=from_channel))
+async def handler(event):
+    if event.file:
+        try:
+            # Contador y nombre nuevo
+            count = get_counter()
+            extension = os.path.splitext(event.file.name or '.zip')[-1]
+            new_filename = f"xkorly_{count}{extension}"
+
+            # Descargar archivo
+            downloaded_path = await event.download_media(file=new_filename)
+
+            # Reenviar archivo con nombre modificado, sin texto
+            await client.send_file(
+                to_chat_id,
+                downloaded_path,
+                caption="",  # sin mensaje
+                force_document=True
+            )
+
+            print(f"✅ Archivo reenviado como {new_filename}")
+            increment_counter()
+            os.remove(downloaded_path)
+
+        except Exception as e:
+            print("❌ Error al reenviar archivo:", e)
+    else:
+        print("⚠️ Mensaje sin archivo, ignorado.")
 
 async def main():
     await client.start(phone=phone)
-    me = await client.get_me()
-    print(f"🤖 Bot conectado como: {me.first_name}")
-
-    from_entity = await client.get_entity(from_channel)
-    to_entity = await client.get_entity(to_chat_username)
-
-    @client.on(events.NewMessage(chats=from_entity))
-    async def handler(event):
-        if event.file:
-            try:
-                # Crear nombre único como xkorly_1.zip, xkorly_2.zip, etc.
-                count = get_counter()
-                extension = event.file.ext or ".zip"
-                new_filename = f"xkorly_{count}{extension}"
-
-                # Reenviar archivo sin texto ni publicidad
-                await client.send_file(
-                    to_entity,
-                    event.file,
-                    caption="",  # Sin texto
-                    force_document=True,
-                    file_name=new_filename
-                )
-
-                print(f"✅ Archivo reenviado como {new_filename}")
-                increment_counter()
-
-            except Exception as e:
-                print("❌ Error al reenviar archivo:", e)
-        else:
-            print("⚠️ Mensaje sin archivo, ignorado.")
-
+    print(f"🤖 Bot conectado como: {(await client.get_me()).first_name}")
     print(f"📡 Escuchando mensajes del canal: {from_channel}")
     await client.run_until_disconnected()
 
-with client:
-    client.loop.run_until_complete(main())
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())
