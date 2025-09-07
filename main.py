@@ -1,45 +1,54 @@
-import re
 import asyncio
+import os
 from telethon import TelegramClient, events
-from flask import Flask
+from telethon.sessions import StringSession
+from telethon.tl.functions.channels import JoinChannelRequest
 
-API_ID = 25342015
-API_HASH = "b047182edee6dd6d9a6ac6989984f46a"
-PHONE = "+18092046403"
+# Configura tus datos en variables de entorno (más abajo te explico cómo)
+API_ID = int(os.getenv("TELEGRAM_API_ID"))
+API_HASH = os.getenv("TELEGRAM_API_HASH")
+PHONE = os.getenv("TELEGRAM_PHONE")  # Con código de país, ej "+5211234567890"
 
-FROM_CHANNEL = "LiveTraffic_channel"
-TO_CHAT_ID = -1003004655869  # Tu grupo privado
+# Nombre o @username del canal a escuchar (debe ser público o donde estés)
+FROM_CHANNEL = os.getenv("TELEGRAM_FROM_CHANNEL")  # ej: "LiveTraffic_channel" o "https://t.me/LiveTraffic_channel"
 
-app = Flask(__name__)
+# ID o username del grupo destino (donde reenviar los mensajes)
+TO_CHAT = os.getenv("TELEGRAM_TO_CHAT_ID")  # ej: -1001234567890 o "mi_grupo_privado"
 
-def filtrar_mensaje(texto):
-    texto_filtrado = re.sub(
-        r"Need private and exclusive logs\? buy access https://t\.me/BuyAccessLiveTraffic_bot",
-        "",
-        texto
-    )
-    return texto_filtrado.strip()
+# Texto que quieres eliminar de los mensajes antes de reenviar
+FILTER_TEXT = "Need private and exclusive logs? buy access https://t.me/BuyAccessLiveTraffic_bot"
 
-client = TelegramClient('user_session', API_ID, API_HASH)
-
-@client.on(events.NewMessage(chats=FROM_CHANNEL))
-async def handler(event):
-    texto_original = event.message.message
-    texto_limpio = filtrar_mensaje(texto_original)
-    if texto_limpio:
-        await client.send_message(TO_CHAT_ID, texto_limpio)
-        print(f"Reenviado mensaje: {texto_limpio}")
-
-@app.route("/")
-def home():
-    return "Bot is running!"
+# Crea cliente userbot
+client = TelegramClient(StringSession(), API_ID, API_HASH)
 
 async def main():
-    await client.start(PHONE)  # Aquí hará login la primera vez
-    print("Conectado como usuario, escuchando canal...")
+    print("Conectando...")
+
+    # Iniciar sesión, pedirá código la primera vez si no hay sesión guardada
+    await client.start(phone=PHONE)
+
+    print("Conectado como:", await client.get_me())
+
+    # Intenta unirte al canal si no estás aún
+    try:
+        await client(JoinChannelRequest(FROM_CHANNEL))
+        print(f"Unido al canal {FROM_CHANNEL}")
+    except Exception as e:
+        print(f"No fue necesario unirse o error: {e}")
+
+    @client.on(events.NewMessage(chats=FROM_CHANNEL))
+    async def handler(event):
+        text = event.message.message or ""
+        # Filtra el texto no deseado
+        filtered_text = text.replace(FILTER_TEXT, "").strip()
+        if filtered_text:
+            print(f"Reenviando mensaje filtrado:\n{filtered_text}\n")
+            await client.send_message(TO_CHAT, filtered_text)
+        else:
+            print("Mensaje filtrado vacío, no se reenvió.")
+
+    print("Bot corriendo, escuchando mensajes...")
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
-    import threading
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=5000)).start()
     asyncio.run(main())
