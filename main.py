@@ -1,53 +1,40 @@
-import asyncio
 import os
+import asyncio
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
-from telethon.tl.functions.channels import JoinChannelRequest
 
-# Configura tus datos en variables de entorno (más abajo te explico cómo)
+# Carga variables de entorno
+SESSION = os.getenv("TELETHON_SESSION")
 API_ID = int(os.getenv("TELEGRAM_API_ID"))
 API_HASH = os.getenv("TELEGRAM_API_HASH")
-PHONE = os.getenv("TELEGRAM_PHONE")  # Con código de país, ej "+5211234567890"
+FROM_CHANNEL = os.getenv("TELEGRAM_FROM_CHANNEL")  # ej: LiveTraffic_channel
+TO_CHAT_ID = int(os.getenv("TELEGRAM_TO_CHAT_ID"))  # ej: -1001234567890
 
-# Nombre o @username del canal a escuchar (debe ser público o donde estés)
-FROM_CHANNEL = os.getenv("TELEGRAM_FROM_CHANNEL")  # ej: "LiveTraffic_channel" o "https://t.me/LiveTraffic_channel"
+# Inicia el cliente
+client = TelegramClient(StringSession(SESSION), API_ID, API_HASH)
 
-# ID o username del grupo destino (donde reenviar los mensajes)
-TO_CHAT = os.getenv("TELEGRAM_TO_CHAT_ID")  # ej: -1001234567890 o "mi_grupo_privado"
+@client.on(events.NewMessage(chats=FROM_CHANNEL))
+async def handler(event):
+    msg = event.message
 
-# Texto que quieres eliminar de los mensajes antes de reenviar
-FILTER_TEXT = "Need private and exclusive logs? buy access https://t.me/BuyAccessLiveTraffic_bot"
+    # Filtro: no reenviar mensajes con publicidad
+    texto = msg.message or ""
+    if "Need private and exclusive logs? buy access" in texto:
+        print("❌ Publicidad filtrada, no reenviada.")
+        return
 
-# Crea cliente userbot
-client = TelegramClient(StringSession(), API_ID, API_HASH)
+    try:
+        # Si el mensaje tiene texto o media, reenviamos todo el mensaje
+        await msg.forward_to(TO_CHAT_ID)
+        print("📦 Mensaje reenviado correctamente.")
+    except Exception as e:
+        print(f"⚠️ Error al reenviar mensaje: {e}")
 
 async def main():
-    print("Conectando...")
-
-    # Iniciar sesión, pedirá código la primera vez si no hay sesión guardada
-    await client.start(phone=PHONE)
-
-    print("Conectado como:", await client.get_me())
-
-    # Intenta unirte al canal si no estás aún
-    try:
-        await client(JoinChannelRequest(FROM_CHANNEL))
-        print(f"Unido al canal {FROM_CHANNEL}")
-    except Exception as e:
-        print(f"No fue necesario unirse o error: {e}")
-
-    @client.on(events.NewMessage(chats=FROM_CHANNEL))
-    async def handler(event):
-        text = event.message.message or ""
-        # Filtra el texto no deseado
-        filtered_text = text.replace(FILTER_TEXT, "").strip()
-        if filtered_text:
-            print(f"Reenviando mensaje filtrado:\n{filtered_text}\n")
-            await client.send_message(TO_CHAT, filtered_text)
-        else:
-            print("Mensaje filtrado vacío, no se reenvió.")
-
-    print("Bot corriendo, escuchando mensajes...")
+    await client.start()
+    me = await client.get_me()
+    print(f"🤖 Bot conectado como: {me.username or me.first_name}")
+    print(f"📡 Escuchando mensajes de: {FROM_CHANNEL}")
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
