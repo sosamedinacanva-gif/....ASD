@@ -7,7 +7,7 @@ from telethon.sessions import StringSession
 SESSION = os.getenv("TELETHON_SESSION")
 API_ID = int(os.getenv("TELEGRAM_API_ID"))
 API_HASH = os.getenv("TELEGRAM_API_HASH")
-FROM_CHANNEL = os.getenv("TELEGRAM_FROM_CHANNEL")  # ej: LiveTraffic_channel
+FROM_CHANNEL = os.getenv("TELEGRAM_FROM_CHANNEL")  
 TO_CHAT_ID = int(os.getenv("TELEGRAM_TO_CHAT_ID"))  # ej: -1001234567890
 
 # Inicia el cliente
@@ -17,14 +17,8 @@ client = TelegramClient(StringSession(SESSION), API_ID, API_HASH)
 async def handler(event):
     msg = event.message
 
-    # Filtro: no reenviar mensajes con publicidad
-    texto = msg.message or ""
-    if "Need private and exclusive logs? buy access" in texto:
-        print("❌ Publicidad filtrada, no reenviada.")
-        return
-
     try:
-        # Si el mensaje tiene texto o media, reenviamos todo el mensaje
+        # Reenvía TODO el mensaje tal como está
         await msg.forward_to(TO_CHAT_ID)
         print("📦 Mensaje reenviado correctamente.")
     except Exception as e:
