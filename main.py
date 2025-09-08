@@ -1,5 +1,8 @@
 from telethon import TelegramClient, events
 import os
+from flask import Flask
+import threading
+import asyncio
 
 # ✅ DATOS DE AUTENTICACIÓN
 api_id = 25342015
@@ -7,8 +10,8 @@ api_hash = 'b047182edee6dd6d9a6ac6989984f46a'
 phone = '+18092046403'
 
 # ✅ DATOS DE LOS CHATS
-from_channel = 'LiveTraffic_channel'  # canal origen
-to_chat_id = -1003004655869           # grupo destino
+from_channel = 'LiveTraffic_channel'   # canal origen (sin @)
+to_chat_id = -1003004655869            # grupo destino
 
 # ✅ ARCHIVO PARA CONTADOR
 counter_file = 'counter.txt'
@@ -28,14 +31,23 @@ def increment_counter():
         f.write(str(count))
     return count
 
-# ✅ INICIAR CLIENTE
+# ✅ FLASK SERVER PARA UPTIMEROBOT
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=5000)
+
+# ✅ TELEGRAM CLIENT
 client = TelegramClient('session', api_id, api_hash)
 
 @client.on(events.NewMessage(chats=from_channel))
 async def handler(event):
     if event.file:
         try:
-            # Contador y nombre nuevo
             count = get_counter()
             extension = os.path.splitext(event.file.name or '.zip')[-1]
             new_filename = f"xkorly_{count}{extension}"
@@ -43,7 +55,7 @@ async def handler(event):
             # Descargar archivo
             downloaded_path = await event.download_media(file=new_filename)
 
-            # Reenviar archivo con nombre modificado, sin texto
+            # Enviar al grupo con nombre nuevo, sin texto
             await client.send_file(
                 to_chat_id,
                 downloaded_path,
@@ -62,10 +74,12 @@ async def handler(event):
 
 async def main():
     await client.start(phone=phone)
-    print(f"🤖 Bot conectado como: {(await client.get_me()).first_name}")
+    me = await client.get_me()
+    print(f"🤖 Bot conectado como: {me.first_name}")
     print(f"📡 Escuchando mensajes del canal: {from_channel}")
     await client.run_until_disconnected()
 
+# ✅ EJECUTAR FLASK + BOT
 if __name__ == '__main__':
-    import asyncio
+    threading.Thread(target=run_flask).start()
     asyncio.run(main())
